@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=System76 Power Indicator
+Comment=Shows a tray icon when a System76 power system is detected
+Exec=/usr/lib/system76-power-indicator/system76-power-indicator
+Icon=/usr/lib/system76-power-indicator/icons/icon-32-green.gif
+Terminal=false
+Type=Application
+Categories=GTK;GNOME;Settings;
+StartupNotify=false
+Name[pt_BR]=System76 Power Indicator

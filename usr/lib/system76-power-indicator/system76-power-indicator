@@ -1,0 +1,130 @@
+#!/usr/bin/python3
+
+import sys
+import os
+import re
+import signal
+import subprocess
+import configparser
+
+import gi.repository
+
+gi.require_version('Gtk', '3.0')
+gi.require_version('AppIndicator3', '0.1')
+from gi.repository import Gtk
+from gi.repository import AppIndicator3
+
+APP_NAME = "System76 Power Indicator"
+HOME_DIR = os.getenv("HOME")  # type:str
+LIB_PATH = "/usr/lib/system76-power-indicator/"
+STD_ICONS_FOLDER = LIB_PATH + "icons/"
+SYSTEM76_POWER_PATH = "/usr/bin/system76-power"
+
+ICON_BATTERY = STD_ICONS_FOLDER  + "icon-32-green.gif";
+ICON_BALANCED = STD_ICONS_FOLDER  + "icon-32-blue.gif";
+ICON_PERFORMANCE = STD_ICONS_FOLDER  + "icon-32-red.gif";
+
+class Indicator:
+    def __init__(self):
+
+        self.active_profile = self.get_active_profile()  # type:str
+        self.custom_color = None
+
+        self.menu = Gtk.Menu()
+
+        separator_in_use = Gtk.SeparatorMenuItem()
+        self.menu.append(separator_in_use)
+
+        self.menu.append(self.new_item("Battery", self.battery, ICON_BATTERY))
+        self.menu.append(self.new_item("Balanced", self.balanced, ICON_BALANCED))
+        self.menu.append(self.new_item("Performance", self.performance, ICON_PERFORMANCE))
+
+        item = Gtk.SeparatorMenuItem()
+        item.show()
+        self.menu.append(item)
+
+        item = Gtk.MenuItem("Quit")
+        item.connect("activate", self.terminate)
+        item.show()
+        self.menu.append(item)
+
+        self.icon = AppIndicator3.Indicator.new(APP_NAME, "",
+                                                AppIndicator3.IndicatorCategory.APPLICATION_STATUS)
+        self.icon.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
+
+        self.active_profile = self.get_active_profile()
+
+        self.set_icon()
+
+        self.icon.set_title(self.active_profile)
+        self.icon.set_label("S76", "None")
+        self.icon.set_menu(self.menu)
+
+    def new_item(self, name, callback, image):
+        img = Gtk.Image()
+        img.set_from_file(image)
+        item = Gtk.ImageMenuItem(name)
+        item.connect("activate", callback)
+        item.show()
+        item.set_image(img)
+        return item
+
+    def terminate(self, window=None, data=None) -> None:
+        Gtk.main_quit()
+
+    def battery(self, window=None, data=None) -> None:
+        self.set_profile("battery")
+
+    def balanced(self, window=None, data=None) -> None:
+        self.set_profile("balanced")
+
+    def performance(self, window=None, data=None) -> None:
+        self.set_profile("performance")
+
+    def set_profile(self, profile):
+        out = subprocess.getoutput("system76-power profile " + profile)
+        self.active_profile = self.get_active_profile()
+        self.icon.set_title(self.active_profile)
+        self.set_icon()
+
+    def get_active_profile(self):
+        return subprocess.getoutput(SYSTEM76_POWER_PATH + " profile").split("\n")[0]
+
+    def execute(self):
+        Gtk.main()
+
+    def set_icon(self):
+        if self.active_profile.find("Performance") > -1:
+            self.icon.set_icon_full(ICON_PERFORMANCE, APP_NAME)
+        if self.active_profile.find("Battery") > -1:
+            self.icon.set_icon_full(ICON_BATTERY, APP_NAME)
+        if self.active_profile.find("Balanced") > -1:
+            self.icon.set_icon_full(ICON_BALANCED, APP_NAME)
+
+def kill_other_instances() -> None:
+    otherpid = subprocess.getoutput("pgrep -f system76-power-indicator")
+    if otherpid:
+        otherpid = str(otherpid)  # type:str
+        pidlist = otherpid.splitlines()  # type:List[str]
+        for pid in pidlist:
+            if pid and pid.isnumeric():
+                pid = int(pid)  # type:int
+                if pid != os.getpid():
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+
+def run() -> None:
+    Indicator().execute()
+
+
+if __name__ == "__main__":
+
+    if not os.path.exists(SYSTEM76_POWER_PATH):
+        sys.exit(0)
+
+    kill_other_instances()
+    run()
